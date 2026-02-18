@@ -33,27 +33,7 @@ const pad     = n  => String(n).padStart(2, "0");
 const dateKey = d  => `${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
 const delay   = ms => new Promise(r => setTimeout(r, ms));
 
-/* ─── Wikimedia image cache ──────────────────────────────────────── */
-const _imgCache = {};
-
-async function fetchWikimediaImg(query) {
-  if (_imgCache[query]) return _imgCache[query];
-  try {
-    const url = `https://en.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(query)}&prop=pageimages&pithumbsize=400&format=json&origin=*`;
-    const res  = await fetch(url);
-    const json = await res.json();
-    const pages = json.query.pages;
-    const page  = pages[Object.keys(pages)[0]];
-    const src   = page?.thumbnail?.source || null;
-    _imgCache[query] = src;
-    return src;
-  } catch {
-    return null;
-  }
-}
-
 function imgUrl(query, sig) {
-  // fallback — Picsum (красивые фото по seed)
   return `https://picsum.photos/seed/${sig}/260/200`;
 }
 
@@ -128,19 +108,10 @@ function renderHolidays(key, data) {
     const img = document.createElement("img");
     img.alt     = h.name;
     img.loading = "lazy";
-    // сначала — Picsum как быстрый плейсхолдер
-    img.src = imgUrl(h.img || h.name, sig);
+    img.src     = imgUrl(h.img || h.name, sig);
     img.addEventListener("load",  () => img.classList.add("loaded"));
     img.addEventListener("error", () => { img.style.display = "none"; });
     imgWrap.append(ph, img);
-    // затем — тематическая картинка из Wikimedia
-    fetchWikimediaImg(h.img || h.name).then(src => {
-      if (src) {
-        const tmp = new Image();
-        tmp.onload = () => { img.src = src; };
-        tmp.src = src;
-      }
-    });
 
     /* text */
     const body = document.createElement("div");
