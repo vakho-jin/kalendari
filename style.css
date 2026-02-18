@@ -563,7 +563,16 @@ body {
     );
 }
 
-.ad-icon svg { width: 64px; height: 64px; }
+.ad-icon svg {
+  width: 64px;
+  height: 64px;
+  text-align: center;
+}
+
+.ad-slide .ad-icon {
+  display: flex;
+  justify-content: center;
+}
 
 .ad-text {
   font-size: .72rem;
@@ -617,6 +626,47 @@ body {
   padding: 14px 16px;
   gap: 8px;
 }
+
+  .ad-widget {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .ad-slide {
+    display: none;
+    animation: fadeInAd 0.5s ease;
+  }
+
+  .ad-slide.active {
+    display: block;
+  }
+
+  @keyframes fadeInAd {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .ad-dots {
+    display: flex;
+    justify-content: center;
+    gap: 6px;
+    margin-top: 8px;
+  }
+
+  .ad-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--ad-stroke, #aaa);
+    opacity: 0.3;
+    transition: opacity 0.3s;
+    cursor: pointer;
+  }
+
+  .ad-dot.active {
+    opacity: 1;
+  }
+
 
 /* ═══════════════════════════════════════════════════════════════════
    FADE TRANSITION (day change)
