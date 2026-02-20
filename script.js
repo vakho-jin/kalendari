@@ -117,10 +117,30 @@ function renderDate(d) {
 
 /* ─── Category config ────────────────────────────────────────────── */
 const CATEGORIES = [
-  { key: "holidays",  label: "დღესასწაულები",      icon: "🎉", field: "holidays"  },
-  { key: "history",   label: "ისტორიული ფაქტები",   icon: "📜", field: "history"   },
-  { key: "born",      label: "დღეს დაბადებულნი",    icon: "🌟", field: "born"      },
-  { key: "died",      label: "დღეს გარდაცვლილნი",   icon: "🕯️", field: "died"      },
+  { 
+    key: "holidays", 
+    label: "დღესასწაულები", 
+    field: "holidays",
+    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>` 
+  },
+  { 
+    key: "history", 
+    label: "ისტორიული ფაქტები", 
+    field: "history",
+    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>` 
+  },
+  { 
+    key: "born", 
+    label: "დღეს დაბადებულნი", 
+    field: "born",
+    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>` 
+  },
+  { 
+    key: "died", 
+    label: "დღეს გარდაცვლილნი", 
+    field: "died",
+    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M12 22v-8"/></svg>` 
+  },
 ];
 
 const catOpen = { holidays: true, history: false, born: false, died: false };
@@ -167,7 +187,7 @@ function renderCategory(cat, items, key) {
 
   const iconEl = document.createElement("span");
   iconEl.className = "cat-icon";
-  iconEl.textContent = cat.icon;
+  iconEl.innerHTML = cat.icon;
 
   const labelEl = document.createElement("span");
   labelEl.className = "cat-label";
