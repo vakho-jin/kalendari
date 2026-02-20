@@ -52,19 +52,36 @@ const delay   = ms => new Promise(r => setTimeout(r, ms));
 const _imgCache = {};
 
 async function fetchWikimediaImg(query) {
-  if (_imgCache[query]) return _imgCache[query];
-  try {
-    const url = `https://en.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(query)}&prop=pageimages&pithumbsize=400&format=json&origin=*`;
-    const res  = await fetch(url);
-    const json = await res.json();
-    const pages = json.query.pages;
-    const page  = pages[Object.keys(pages)[0]];
-    const src   = page?.thumbnail?.source || null;
-    _imgCache[query] = src;
-    return src;
-  } catch {
-    return null;
+  const queries = Array.isArray(query) ? query : [query];
+  
+  for (const q of queries) {
+    if (_imgCache[q]) return _imgCache[q];
+    
+    try {
+      // Сначала ищем через opensearch чтобы найти точное название статьи
+      const searchUrl = `https://en.wikipedia.org/w/api.php?action=opensearch&search=${encodeURIComponent(q)}&limit=1&format=json&origin=*`;
+      const searchRes  = await fetch(searchUrl);
+      const searchJson = await searchRes.json();
+      const exactTitle = searchJson[1]?.[0] || q;
+
+      // Затем берём изображение по точному названию
+      const url = `https://en.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(exactTitle)}&prop=pageimages&pithumbsize=600&pilicense=any&format=json&origin=*`;
+      const res  = await fetch(url);
+      const json = await res.json();
+      const pages = json.query.pages;
+      const page  = pages[Object.keys(pages)[0]];
+      const src   = page?.thumbnail?.source || null;
+
+      if (src) {
+        _imgCache[q] = src;
+        return src;
+      }
+    } catch {
+      continue;
+    }
   }
+
+  return null;
 }
 
 function imgUrl(query, sig) {
@@ -98,79 +115,151 @@ function renderDate(d) {
   elWD.textContent  = WEEKDAYS[d.getDay()];
 }
 
+/* ─── Category config ────────────────────────────────────────────── */
+const CATEGORIES = [
+  { key: "holidays",  label: "დღესასწაულები",      icon: "🎉", field: "holidays"  },
+  { key: "history",   label: "ისტორიული ფაქტები",   icon: "📜", field: "history"   },
+  { key: "born",      label: "დღეს დაბადებულნი",    icon: "🌟", field: "born"      },
+  { key: "died",      label: "დღეს გარდაცვლილნი",   icon: "🕯️", field: "died"      },
+];
+
+const catOpen = { holidays: true, history: false, born: false, died: false };
+
 /* ─── Render: holidays list ──────────────────────────────────────── */
 function renderHolidays(key, data) {
   elList.innerHTML = "";
 
-  const named = data ? data.filter(h => h.name && h.name.trim()) : [];
-  const plain = data ? data.filter(h => !h.name || !h.name.trim()) : [];
+  const categorized = data && (data.holidays || data.history || data.born || data.died);
 
-  if (!named.length) {
-    const p = document.createElement("p");
-    p.className = "no-holidays";
-    
-    if (plain.length) {
-        p.textContent = plain[0].fact;
-    } else {
-        const span1 = document.createElement("span");
-        span1.textContent = "დღესასწაულების გარეშე";
-        const span2 = document.createElement("span");
-        span2.textContent = "(დაემატება უმოკლეს დროში)";
-        
-        p.appendChild(span1);
-        p.appendChild(document.createElement("br"));
-        p.appendChild(span2);
-    }
-    
-    elList.appendChild(p);
-    return;
+  if (categorized) {
+    CATEGORIES.forEach(cat => {
+      renderCategory(cat, data[cat.field] || [], key);
+    });
+  } else {
+    const named = data ? data.filter(h => h.name && h.name.trim()) : [];
+    const plain = data ? data.filter(h => !h.name || !h.name.trim()) : [];
+
+    CATEGORIES.forEach(cat => {
+      let items = [];
+      if (cat.key === "holidays") {
+        if (!named.length && plain.length) {
+          items = [{ name: "", fact: plain[0].fact }];
+        } else {
+          items = named;
+        }
+      }
+      renderCategory(cat, items, key);
+    });
+  }
 }
 
-  named.forEach((h, idx) => {
-    const sig = Math.abs(
-      (key + idx).split("").reduce((a, c) => (a * 31 + c.charCodeAt(0)) | 0, 0)
-    );
+function renderCategory(cat, items, key) {
+  const section = document.createElement("div");
+  section.className = "cat-section";
+  section.dataset.cat = cat.key;
 
-    const card = document.createElement("div");
-    card.className = "holiday-card";
+  const header = document.createElement("button");
+  header.className = "cat-header";
+  header.setAttribute("aria-expanded", catOpen[cat.key]);
 
-    /* image */
-    const imgWrap = document.createElement("div");
-    imgWrap.className = "h-img";
-    const ph  = document.createElement("div");
-    ph.className = "h-img-ph";
-    ph.textContent = "✦";
-    const img = document.createElement("img");
-    img.alt     = h.name;
-    img.loading = "lazy";
-    // сначала — Picsum как быстрый плейсхолдер
-    img.src = imgUrl(h.img || h.name, sig);
-    img.addEventListener("load",  () => img.classList.add("loaded"));
-    img.addEventListener("error", () => { img.style.display = "none"; });
-    imgWrap.append(ph, img);
-    // затем — тематическая картинка из Wikimedia
-    fetchWikimediaImg(h.img || h.name).then(src => {
-      if (src) {
-        const tmp = new Image();
-        tmp.onload = () => { img.src = src; };
-        tmp.src = src;
-      }
+  const left = document.createElement("span");
+  left.className = "cat-header-left";
+
+  const iconEl = document.createElement("span");
+  iconEl.className = "cat-icon";
+  iconEl.textContent = cat.icon;
+
+  const labelEl = document.createElement("span");
+  labelEl.className = "cat-label";
+  labelEl.textContent = cat.label;
+
+  const countEl = document.createElement("span");
+  countEl.className = "cat-count";
+  countEl.textContent = items.length;
+
+  left.append(iconEl, labelEl, countEl);
+
+  const arrow = document.createElement("span");
+  arrow.className = "cat-arrow";
+  arrow.innerHTML = `<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 4l4 4 4-4"/></svg>`;
+
+  header.append(left, arrow);
+  section.appendChild(header);
+
+  const body = document.createElement("div");
+  body.className = "cat-body";
+  if (!catOpen[cat.key]) body.style.display = "none";
+
+  if (items.length === 0) {
+    const empty = document.createElement("p");
+    empty.className = "cat-empty";
+    empty.textContent = "ინფორმაცია დაემატება უმოკლეს დროში";
+    body.appendChild(empty);
+  } else {
+    items.forEach((h, idx) => {
+      const sig = Math.abs(
+        (key + cat.key + idx).split("").reduce((a, c) => (a * 31 + c.charCodeAt(0)) | 0, 0)
+      );
+      body.appendChild(buildEventCard(h, sig));
     });
+  }
 
-    /* text */
-    const body = document.createElement("div");
-    body.className = "h-body";
-    const name = document.createElement("div");
-    name.className   = "h-name";
-    name.textContent = h.name;
-    const fact = document.createElement("div");
-    fact.className   = "h-fact";
-    fact.textContent = h.fact || "";
-    body.append(name, fact);
+  section.appendChild(body);
+  elList.appendChild(section);
 
-    card.append(imgWrap, body);
-    elList.appendChild(card);
+  header.addEventListener("click", () => {
+    const open = catOpen[cat.key] = !catOpen[cat.key];
+    header.setAttribute("aria-expanded", open);
+    section.classList.toggle("is-open", open);
+    if (open) {
+      body.style.display = "";
+      body.classList.add("cat-body-anim");
+      setTimeout(() => body.classList.remove("cat-body-anim"), 380);
+    } else {
+      body.style.display = "none";
+    }
   });
+
+  if (catOpen[cat.key]) section.classList.add("is-open");
+}
+
+function buildEventCard(h, sig) {
+  const card = document.createElement("div");
+  card.className = "event-card";
+
+  const imgWrap = document.createElement("div");
+  imgWrap.className = "ev-img";
+
+  const ph = document.createElement("div");
+  ph.className = "ev-img-ph";
+  ph.textContent = "✦";
+
+  const img = document.createElement("img");
+  img.alt     = h.name || "";
+  img.loading = "lazy";
+  img.src     = imgUrl(h.img || h.name, sig);
+  img.addEventListener("load",  () => img.classList.add("loaded"));
+  img.addEventListener("error", () => { img.style.display = "none"; });
+  imgWrap.append(ph, img);
+
+  fetchWikimediaImg(h.img || h.name).then(src => {
+    if (src) { const t = new Image(); t.onload = () => { img.src = src; }; t.src = src; }
+  });
+
+  const body = document.createElement("div");
+  body.className = "ev-body";
+
+  const name = document.createElement("div");
+  name.className   = "ev-name";
+  name.textContent = h.name || "";
+
+  const fact = document.createElement("div");
+  fact.className   = "ev-fact";
+  fact.textContent = h.fact || "";
+
+  body.append(name, fact);
+  card.append(imgWrap, body);
+  return card;
 }
 
 /* ─── Render: mini-calendar ──────────────────────────────────────── */
