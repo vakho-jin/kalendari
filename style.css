@@ -233,7 +233,7 @@ body {
 .mc-arrow:active { transform: scale(.9); }
 
 .mc-title {
-  font-size: .73rem;
+  font-size: .75rem;
   font-weight: 600;
   letter-spacing: .08em;
   text-transform: uppercase;
@@ -252,7 +252,7 @@ body {
   border-bottom: 1px solid var(--line-soft);
 }
 .mc-weekdays span {
-  font-size: .55rem;
+  font-size: .60rem;
   font-weight: 500;
   letter-spacing: .05em;
   text-transform: uppercase;
@@ -275,7 +275,7 @@ body {
   justify-content: center;
   height: 30px;
   border-radius: 8px;
-  font-size: .72rem;
+  font-size: .75rem;
   font-weight: 400;
   color: var(--ink-2);
   position: relative;
@@ -332,7 +332,7 @@ body {
   display: flex;
   align-items: center;
   gap: 9px;
-  font-size: .65rem;
+  font-size: .70rem;
   font-weight: 500;
   color: var(--ink-3);
   letter-spacing: .02em;
@@ -618,13 +618,13 @@ body {
 }
 .ev-name {
   font-family: "DM Serif Display", Georgia, serif;
-  font-size: .82rem;
+  font-size: .85rem;
   line-height: 1.25;
   color: var(--ink);
   transition: color .3s;
 }
 .ev-fact {
-  font-size: .63rem;
+  font-size: .75rem;
   font-weight: 300;
   line-height: 1.5;
   color: var(--ink-3);
@@ -644,7 +644,7 @@ body {
 }
 
 .ad-tag {
-  font-size: .52rem;
+  font-size: .55rem;
   font-weight: 600;
   letter-spacing: .18em;
   text-transform: uppercase;
@@ -684,7 +684,7 @@ body {
 }
 
 .ad-text {
-  font-size: .72rem;
+  font-size: .75rem;
   color: var(--ink-3);
   text-align: center;
   line-height: 1.6;
@@ -693,7 +693,7 @@ body {
 .ad-link {
   display: inline-block;
   text-decoration: none;
-  font-size: .62rem;
+  font-size: .65rem;
   font-weight: 500;
   letter-spacing: .1em;
   text-transform: uppercase;
@@ -722,7 +722,7 @@ body {
 }
 
 .ad-text-sm {
-  font-size: .68rem;
+  font-size: .70rem;
   color: var(--ink-3);
   text-align: center;
   line-height: 1.5;

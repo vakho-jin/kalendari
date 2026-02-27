@@ -1,22 +1,7 @@
 "use strict";
 
 /* ─── Holiday keys (inline set for file:// compatibility) ────────── */
-const HOLIDAY_KEYS = new Set([
-"01-01",
-"01-02",
-"01-07",
-"01-19",
-"03-03",
-"03-08",
-"04-09",
-"05-09",
-"05-12",
-"05-17",
-"05-26",
-"08-28",
-"10-14",
-"11-23"
-]);
+const HOLIDAY_KEYS = new Set(["01-01","01-02","01-07"]);
 
 /* ─── Locale ─────────────────────────────────────────────────────── */
 const MONTHS_GEN = ["იანვარი","თებერვალი","მარტი","აპრილი","მაისი","ივნისი",
@@ -48,57 +33,7 @@ const pad     = n  => String(n).padStart(2, "0");
 const dateKey = d  => `${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
 const delay   = ms => new Promise(r => setTimeout(r, ms));
 
-/* ─── Wikimedia image cache ──────────────────────────────────────── */
-const _imgCache = {};
-
-async function fetchWikimediaImg(query) {
-  // формируем уникальный ключ кэша
-  const cacheKey = typeof query === "object" ? JSON.stringify(query) : String(query);
-  if (_imgCache[cacheKey] !== undefined) return _imgCache[cacheKey];
-
-  // строим список { lang, title } для перебора
-  let searches = [];
-
-  if (typeof query === "object" && !Array.isArray(query)) {
-    // { ka: "გიორგი_ფანცულაია", en: "...", ru: "..." }
-    if (query.en) searches.push({ lang: "en", title: query.en });
-    if (query.ru) searches.push({ lang: "ru", title: query.ru });
-    if (query.ka) searches.push({ lang: "ka", title: query.ka });
-  } else if (typeof query === "string" && /^(en|ru|ka):/.test(query)) {
-    // "ru:Рождество Христово"
-    const [lang, ...rest] = query.split(":");
-    searches.push({ lang, title: rest.join(":") });
-  } else {
-    // обычная строка — пробуем en → ru → ka
-    const q = Array.isArray(query) ? query[0] : String(query);
-    searches = [
-      { lang: "en", title: q },
-      { lang: "ru", title: q },
-      { lang: "ka", title: q },
-    ];
-  }
-
-  for (const { lang, title } of searches) {
-    try {
-      const url = `https://${lang}.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(title)}&prop=pageimages&pithumbsize=600&pilicense=any&format=json&origin=*`;
-      const res  = await fetch(url);
-      const json = await res.json();
-      const pages = json.query.pages;
-      const page  = pages[Object.keys(pages)[0]];
-      const src   = page?.thumbnail?.source || null;
-      if (src) {
-        _imgCache[cacheKey] = src;
-        return src;
-      }
-    } catch { /* пробуем следующий язык */ }
-  }
-
-  _imgCache[cacheKey] = null;
-  return null;
-}
-
 function imgUrl(query, sig) {
-  // fallback — Picsum (красивые фото по seed)
   return `https://picsum.photos/seed/${sig}/260/200`;
 }
 
@@ -128,171 +63,70 @@ function renderDate(d) {
   elWD.textContent  = WEEKDAYS[d.getDay()];
 }
 
-/* ─── Category config ────────────────────────────────────────────── */
-const CATEGORIES = [
-  { 
-    key: "holidays", 
-    label: "დღესასწაულები", 
-    field: "holidays",
-    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>` 
-  },
-  { 
-    key: "history", 
-    label: "ისტორიული ფაქტები", 
-    field: "history",
-    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>` 
-  },
-  { 
-    key: "born", 
-    label: "დღეს დაბადებულნი", 
-    field: "born",
-    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>` 
-  },
-  { 
-    key: "died", 
-    label: "დღეს გარდაცვლილნი", 
-    field: "died",
-    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M12 22v-8"/></svg>` 
-  },
-];
-
-const catOpen = { holidays: true, history: false, born: false, died: false };
-
 /* ─── Render: holidays list ──────────────────────────────────────── */
 function renderHolidays(key, data) {
   elList.innerHTML = "";
 
-  const categorized = data && (data.holidays || data.history || data.born || data.died);
+  const named = data ? data.filter(h => h.name && h.name.trim()) : [];
+  const plain = data ? data.filter(h => !h.name || !h.name.trim()) : [];
 
-  if (categorized) {
-    CATEGORIES.forEach(cat => {
-      renderCategory(cat, data[cat.field] || [], key);
-    });
-  } else {
-    const named = data ? data.filter(h => h.name && h.name.trim()) : [];
-    const plain = data ? data.filter(h => !h.name || !h.name.trim()) : [];
-
-    CATEGORIES.forEach(cat => {
-      let items = [];
-      if (cat.key === "holidays") {
-        if (!named.length && plain.length) {
-          items = [{ name: "", fact: plain[0].fact }];
-        } else {
-          items = named;
-        }
-      }
-      renderCategory(cat, items, key);
-    });
-  }
-}
-
-function renderCategory(cat, items, key) {
-  const section = document.createElement("div");
-  section.className = "cat-section";
-  section.dataset.cat = cat.key;
-
-  const header = document.createElement("button");
-  header.className = "cat-header";
-  header.setAttribute("aria-expanded", catOpen[cat.key]);
-
-  const left = document.createElement("span");
-  left.className = "cat-header-left";
-
-  const iconEl = document.createElement("span");
-  iconEl.className = "cat-icon";
-  iconEl.innerHTML = cat.icon;
-
-  const labelEl = document.createElement("span");
-  labelEl.className = "cat-label";
-  labelEl.textContent = cat.label;
-
-  const countEl = document.createElement("span");
-  countEl.className = "cat-count";
-  countEl.textContent = items.length;
-
-  left.append(iconEl, labelEl, countEl);
-
-  const arrow = document.createElement("span");
-  arrow.className = "cat-arrow";
-  arrow.innerHTML = `<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 4l4 4 4-4"/></svg>`;
-
-  header.append(left, arrow);
-  section.appendChild(header);
-
-  const body = document.createElement("div");
-  body.className = "cat-body";
-  if (!catOpen[cat.key]) body.style.display = "none";
-
-  if (items.length === 0) {
-    const empty = document.createElement("p");
-    empty.className = "cat-empty";
-    empty.textContent = "ინფორმაცია დაემატება უმოკლეს დროში";
-    body.appendChild(empty);
-  } else {
-    items.forEach((h, idx) => {
-      const sig = Math.abs(
-        (key + cat.key + idx).split("").reduce((a, c) => (a * 31 + c.charCodeAt(0)) | 0, 0)
-      );
-      body.appendChild(buildEventCard(h, sig));
-    });
-  }
-
-  section.appendChild(body);
-  elList.appendChild(section);
-
-  header.addEventListener("click", () => {
-    const open = catOpen[cat.key] = !catOpen[cat.key];
-    header.setAttribute("aria-expanded", open);
-    section.classList.toggle("is-open", open);
-    if (open) {
-      body.style.display = "";
-      body.classList.add("cat-body-anim");
-      setTimeout(() => body.classList.remove("cat-body-anim"), 380);
+  if (!named.length) {
+    const p = document.createElement("p");
+    p.className = "no-holidays";
+    
+    if (plain.length) {
+        p.textContent = plain[0].fact;
     } else {
-      body.style.display = "none";
+        const span1 = document.createElement("span");
+        span1.textContent = "დღესასწაულების გარეშე";
+        const span2 = document.createElement("span");
+        span2.textContent = "(დაემატება უმოკლეს დროში)";
+        
+        p.appendChild(span1);
+        p.appendChild(document.createElement("br"));
+        p.appendChild(span2);
     }
-  });
-
-  if (catOpen[cat.key]) section.classList.add("is-open");
+    
+    elList.appendChild(p);
+    return;
 }
 
-function buildEventCard(h, sig) {
-  const card = document.createElement("div");
-  card.className = "event-card";
+  named.forEach((h, idx) => {
+    const sig = Math.abs(
+      (key + idx).split("").reduce((a, c) => (a * 31 + c.charCodeAt(0)) | 0, 0)
+    );
 
-  const imgWrap = document.createElement("div");
-  imgWrap.className = "ev-img";
+    const card = document.createElement("div");
+    card.className = "holiday-card";
 
-  const ph = document.createElement("div");
-  ph.className = "ev-img-ph";
-  ph.textContent = "✦";
+    /* image */
+    const imgWrap = document.createElement("div");
+    imgWrap.className = "h-img";
+    const ph  = document.createElement("div");
+    ph.className = "h-img-ph";
+    ph.textContent = "✦";
+    const img = document.createElement("img");
+    img.alt     = h.name;
+    img.loading = "lazy";
+    img.src     = imgUrl(h.img || h.name, sig);
+    img.addEventListener("load",  () => img.classList.add("loaded"));
+    img.addEventListener("error", () => { img.style.display = "none"; });
+    imgWrap.append(ph, img);
 
-  const img = document.createElement("img");
-  img.alt     = h.name || "";
-  img.loading = "lazy";
-  img.src     = imgUrl(h.img || h.name, sig);
-  img.addEventListener("load",  () => img.classList.add("loaded"));
-  img.addEventListener("error", () => { img.style.display = "none"; });
-  imgWrap.append(ph, img);
+    /* text */
+    const body = document.createElement("div");
+    body.className = "h-body";
+    const name = document.createElement("div");
+    name.className   = "h-name";
+    name.textContent = h.name;
+    const fact = document.createElement("div");
+    fact.className   = "h-fact";
+    fact.textContent = h.fact || "";
+    body.append(name, fact);
 
-  fetchWikimediaImg(h.img || h.name).then(src => {
-    if (src) { const t = new Image(); t.onload = () => { img.src = src; }; t.src = src; }
+    card.append(imgWrap, body);
+    elList.appendChild(card);
   });
-
-  const body = document.createElement("div");
-  body.className = "ev-body";
-
-  const name = document.createElement("div");
-  name.className   = "ev-name";
-  name.textContent = h.name || "";
-
-  const fact = document.createElement("div");
-  fact.className   = "ev-fact";
-  fact.textContent = h.fact || "";
-
-  body.append(name, fact);
-  card.append(imgWrap, body);
-  return card;
 }
 
 /* ─── Render: mini-calendar ──────────────────────────────────────── */
