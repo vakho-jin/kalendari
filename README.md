@@ -21,5 +21,7 @@
 4. დღეს გარდაცვლილნი
 
 ინფორმაცია აღებულია ინგლისურენოვანი და ქართულენოვანი ვიკიპედიიდან
+
 [en.wikipedia.org](https://en.wikipedia.org/wiki/Main_Page)
+
 [ka.wikipedia.org](https://ka.wikipedia.org/wiki/%E1%83%9B%E1%83%97%E1%83%90%E1%83%95%E1%83%90%E1%83%A0%E1%83%98_%E1%83%92%E1%83%95%E1%83%94%E1%83%A0%E1%83%93%E1%83%98)
