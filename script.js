@@ -52,48 +52,35 @@ const delay   = ms => new Promise(r => setTimeout(r, ms));
 const _imgCache = {};
 
 async function fetchWikimediaImg(query) {
-  // формируем уникальный ключ кэша
-  const cacheKey = typeof query === "object" ? JSON.stringify(query) : String(query);
-  if (_imgCache[cacheKey] !== undefined) return _imgCache[cacheKey];
-
-  // строим список { lang, title } для перебора
-  let searches = [];
-
-  if (typeof query === "object" && !Array.isArray(query)) {
-    // { ka: "გიორგი_ფანცულაია", en: "...", ru: "..." }
-    if (query.en) searches.push({ lang: "en", title: query.en });
-    if (query.ru) searches.push({ lang: "ru", title: query.ru });
-    if (query.ka) searches.push({ lang: "ka", title: query.ka });
-  } else if (typeof query === "string" && /^(en|ru|ka):/.test(query)) {
-    // "ru:Рождество Христово"
-    const [lang, ...rest] = query.split(":");
-    searches.push({ lang, title: rest.join(":") });
-  } else {
-    // обычная строка — пробуем en → ru → ka
-    const q = Array.isArray(query) ? query[0] : String(query);
-    searches = [
-      { lang: "en", title: q },
-      { lang: "ru", title: q },
-      { lang: "ka", title: q },
-    ];
-  }
-
-  for (const { lang, title } of searches) {
+  const queries = Array.isArray(query) ? query : [query];
+  
+  for (const q of queries) {
+    if (_imgCache[q]) return _imgCache[q];
+    
     try {
-      const url = `https://${lang}.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(title)}&prop=pageimages&pithumbsize=600&pilicense=any&format=json&origin=*`;
+      // Сначала ищем через opensearch чтобы найти точное название статьи
+      const searchUrl = `https://en.wikipedia.org/w/api.php?action=opensearch&search=${encodeURIComponent(q)}&limit=1&format=json&origin=*`;
+      const searchRes  = await fetch(searchUrl);
+      const searchJson = await searchRes.json();
+      const exactTitle = searchJson[1]?.[0] || q;
+
+      // Затем берём изображение по точному названию
+      const url = `https://en.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(exactTitle)}&prop=pageimages&pithumbsize=600&pilicense=any&format=json&origin=*`;
       const res  = await fetch(url);
       const json = await res.json();
       const pages = json.query.pages;
       const page  = pages[Object.keys(pages)[0]];
       const src   = page?.thumbnail?.source || null;
+
       if (src) {
-        _imgCache[cacheKey] = src;
+        _imgCache[q] = src;
         return src;
       }
-    } catch { /* пробуем следующий язык */ }
+    } catch {
+      continue;
+    }
   }
 
-  _imgCache[cacheKey] = null;
   return null;
 }
 
