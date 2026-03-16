@@ -46,6 +46,10 @@ function detectLanguage(text) {
   return 'en';
 }
 
+/**
+ * ოპტიმიზებული: ერთი API-მოთხოვნა opensearch+pageimages-ის ნაცვლად.
+ * იყენებს action=query&list=search + prop=pageimages ერთ round-trip-ში.
+ */
 async function fetchWikimediaImg(query) {
   const queries = Array.isArray(query) ? query : [query];
 
@@ -59,24 +63,27 @@ async function fetchWikimediaImg(query) {
       try {
         const base = `https://${tryLang}.wikipedia.org/w/api.php`;
 
-        const sUrl = `${base}?action=opensearch&search=${encodeURIComponent(q)}&limit=1&format=json&origin=*`;
-        const sRes  = await fetch(sUrl);
-        const sJson = await sRes.json();
-        const title = sJson[1]?.[0] || q;
+        // ერთი მოთხოვნა: ძებნა + სურათი ერთდროულად
+        const url = `${base}?action=query&list=search&srsearch=${encodeURIComponent(q)}&srlimit=1` +
+                    `&prop=pageimages&pithumbsize=600&pilicense=any` +
+                    `&generator=search&gsrsearch=${encodeURIComponent(q)}&gsrlimit=1` +
+                    `&format=json&origin=*`;
 
-        const iUrl  = `${base}?action=query&titles=${encodeURIComponent(title)}&prop=pageimages&pithumbsize=600&pilicense=any&format=json&origin=*`;
-        const iRes  = await fetch(iUrl);
-        const iJson = await iRes.json();
-        const pages = iJson.query.pages;
-        const page  = pages[Object.keys(pages)[0]];
-        const src   = page?.thumbnail?.source || null;
+        const res  = await fetch(url);
+        const json = await res.json();
 
-        if (src) { _imgCache[q] = src; return src; }
+        // generator=search აბრუნებს pages პირდაპირ
+        const pages = json.query?.pages;
+        if (pages) {
+          const page = pages[Object.keys(pages)[0]];
+          const src  = page?.thumbnail?.source || null;
+          if (src) { _imgCache[q] = src; return src; }
+        }
       } catch { continue; }
     }
   }
 
-  _imgCache[query] = null;
+  _imgCache[queries[0]] = null;
   return null;
 }
 
@@ -96,17 +103,14 @@ window.__dayDataCallback__ = function(data) {
 };
 
 function loadDay(key) {
-  // ქეშიდან დაბრუნება
   if (_dayCache.hasOwnProperty(key)) {
     return Promise.resolve(_dayCache[key]);
   }
 
   return new Promise(resolve => {
-    // წინა script ტეგის წაშლა
     const prev = document.getElementById("__ds__");
     if (prev) prev.remove();
 
-    // timeout — 5 წამზე მეტი ველოდება
     const timer = setTimeout(() => {
       _pendingResolve = null;
       _dayCache[key] = null;
@@ -244,20 +248,23 @@ function renderCategory(cat, items, key) {
 
   const body = document.createElement("div");
   body.className = "cat-body";
-  if (!catOpen[cat.key]) body.style.display = "none";
 
-  if (items.length === 0) {
-    const empty = document.createElement("p");
-    empty.className   = "cat-empty";
-    empty.textContent = "ინფორმაცია დაემატება უმოკლეს დროში";
-    body.appendChild(empty);
+  const isOpen = catOpen[cat.key];
+
+  if (!isOpen) {
+    // დახურული კატეგორია: body იმალება, კონტენტი ჯერ არ იშენება
+    body.style.display = "none";
+    body.dataset.built = "0";
+    body.dataset.items = JSON.stringify(items);
+    body.dataset.key   = key;
+    body.dataset.cat   = cat.key;
+    body.dataset.sig   = Math.abs(
+      (key + cat.key + "0").split("").reduce((a,c) => (a*31+c.charCodeAt(0))|0, 0)
+    );
   } else {
-    items.forEach((h, idx) => {
-      const sig = Math.abs(
-        (key + cat.key + idx).split("").reduce((a, c) => (a * 31 + c.charCodeAt(0)) | 0, 0)
-      );
-      body.appendChild(buildEventCard(h, sig));
-    });
+    // გახსნილი კატეგორია: კონტენტი მაშინვე შენდება + სურათები იტვირთება
+    buildCatBody(body, items, key, cat.key);
+    body.dataset.built = "1";
   }
 
   section.appendChild(body);
@@ -271,12 +278,40 @@ function renderCategory(cat, items, key) {
       body.style.display = "";
       body.classList.add("cat-body-anim");
       setTimeout(() => body.classList.remove("cat-body-anim"), 380);
+
+      // lazy build: კარტები შენდება პირველი გახსნისას
+      if (body.dataset.built === "0") {
+        const savedItems = JSON.parse(body.dataset.items || "[]");
+        buildCatBody(body, savedItems, body.dataset.key, body.dataset.cat);
+        body.dataset.built = "1";
+      }
     } else {
       body.style.display = "none";
     }
   });
 
-  if (catOpen[cat.key]) section.classList.add("is-open");
+  if (isOpen) section.classList.add("is-open");
+}
+
+/**
+ * კარტების პირდაპირ body-ში აშენება.
+ * გამოიყენება როგორც initial render-ისთვის, ასევე lazy-build-ისთვის.
+ */
+function buildCatBody(body, items, key, catKey) {
+  if (items.length === 0) {
+    const empty = document.createElement("p");
+    empty.className   = "cat-empty";
+    empty.textContent = "ინფორმაცია დაემატება უმოკლეს დროში";
+    body.appendChild(empty);
+    return;
+  }
+
+  items.forEach((h, idx) => {
+    const sig = Math.abs(
+      (key + catKey + idx).split("").reduce((a, c) => (a * 31 + c.charCodeAt(0)) | 0, 0)
+    );
+    body.appendChild(buildEventCard(h, sig));
+  });
 }
 
 function makeImgWrap(query, sig, label) {
@@ -288,13 +323,13 @@ function makeImgWrap(query, sig, label) {
   ph.textContent = "✦";
 
   const img = document.createElement("img");
-  img.alt     = label || "";
-  img.loading = "lazy";
-  img.src     = makePlaceholderUrl(sig);
+  img.alt = label || "";
+  img.src = makePlaceholderUrl(sig);
   img.addEventListener("load",  () => img.classList.add("loaded"));
   img.addEventListener("error", () => { img.style.display = "none"; });
   imgWrap.append(ph, img);
 
+  // Wikipedia სურათი — ასინქრონულად
   fetchWikimediaImg(query).then(src => {
     if (src) {
       const t = new Image();
